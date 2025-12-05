@@ -1,57 +1,23 @@
-﻿// src/models/Product.js में ये update करें:
+﻿// src/models/Product.js
 
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
-const productSchema = new mongoose.Schema({
-  productCode: { 
-    type: String, 
-    unique: true, 
-    required: true 
+const productSchema = new mongoose.Schema(
+  {
+    name: String,
+    code: { type: String, unique: true },
+    category: { type: mongoose.Schema.Types.ObjectId, ref: "Category" },
+    purchasePrice: Number,
+    salePrice: Number,
+    stock: Number,
+    unit: String,
+    location: String,
+    description: String,
+    gstPercent: Number,
   },
-  name: { 
-    type: String, 
-    required: true 
-  },
-  category: { 
-    type: String, 
-    required: true 
-  },
-  material: String,
-  color: String,
-  stock: { 
-    type: Number, 
-    required: true, 
-    min: 0 
-  },
-  price: { 
-    type: Number, 
-    required: true, 
-    min: 0 
-  },
-  costPrice: Number,
-  
-  // BARCODE FIELDS (Auto-generated)
-  barcode: { 
-    type: String, 
-    unique: true 
-  },
-  barcodeImage: String,
-  barcodeImageUrl: String,
-  qrCodeImage: String,
-  
-  location: String,
-  minStock: { 
-    type: Number, 
-    default: 5 
-  },
-  description: String,
-  status: {
-    type: String,
-    enum: ['active', 'inactive'],
-    default: 'active'
-  }
-}, {
-  timestamps: true
-});
+  { timestamps: true }
+);
 
-module.exports = mongoose.model('Product', productSchema);
+// SAFE EXPORT → OverwriteModelError FIXED
+module.exports =
+  mongoose.models.Product || mongoose.model("Product", productSchema);
