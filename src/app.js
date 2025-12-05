@@ -8,13 +8,21 @@ require("dotenv").config();
 const app = express();
 
 // =======================
-// SIMPLE CORS (BEST FOR NOW)
+// CORS CONFIG (FINAL)
 // =======================
-// ❌ yaha koi complex origin, credentials, options nahi
-// ✅ sab origin allow, kyunki hum cookies use nahi kar rahe
-app.use(cors());
+const corsOptions = {
+  origin: true, // jo origin se request aayegi, usko allow karega
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+};
 
-// (optional) request log – debugging ke liye
+// saari normal requests ke liye
+app.use(cors(corsOptions));
+
+// saari OPTIONS (preflight) requests ke liye
+app.options("*", cors(corsOptions));
+
+// (debug ke liye chhota logger)
 app.use((req, res, next) => {
   console.log("➡", req.method, req.url, "Origin:", req.headers.origin);
   next();
