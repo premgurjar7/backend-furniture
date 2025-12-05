@@ -11,16 +11,16 @@ const app = express();
 // CORS CONFIG (FINAL)
 // =======================
 const corsOptions = {
-  // jis origin se request aayegi, usi ko allow karega
-  origin: true,
+  origin: [
+    "http://localhost:5001",
+    "http://127.0.0.1:5001",
+  ],
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
 };
 
 app.use(cors(corsOptions));
-
-// preflight (OPTIONS) ke liye
 app.options("*", cors(corsOptions));
 
 // =======================
@@ -73,11 +73,12 @@ app.use("*", (req, res) => {
 // Global Error Handler
 // =======================
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  console.error("🔥 Server Error:", err.stack);
   res.status(500).json({
     success: false,
     message: "Something went wrong!",
-    error: process.env.NODE_ENV === "development" ? err.message : undefined,
+    error:
+      process.env.NODE_ENV === "development" ? err.message : undefined,
   });
 });
 
