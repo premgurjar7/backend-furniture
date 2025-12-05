@@ -1,13 +1,14 @@
-// src/routes/scanRoutes.js
 const express = require("express");
 const router = express.Router();
+const scanController = require("../controllers/scanController");
 
-const { scanProduct } = require("../controllers/scanController");
+// Scan by code
+router.get("/:code", scanController.scanByCode);
 
-// Debug log – server start पर दिखेगा
-console.log("✅ scanRoutes loaded");
+// Recent scans
+router.get("/recent/list", scanController.recentScans);
 
-// POST /api/scan
-router.post("/", scanProduct);
+// Save scan history
+router.post("/", scanController.saveScan);
 
 module.exports = router;
