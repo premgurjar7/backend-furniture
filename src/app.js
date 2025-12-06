@@ -11,18 +11,15 @@ const app = express();
 // CORS CONFIG (FINAL)
 // =======================
 const corsOptions = {
-  origin: true, // jo origin se request aayegi, usko allow karega
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  origin: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
 };
 
-// saari normal requests ke liye
 app.use(cors(corsOptions));
-
-// saari OPTIONS (preflight) requests ke liye
 app.options("*", cors(corsOptions));
 
-// (debug ke liye chhota logger)
+// Debug logger
 app.use((req, res, next) => {
   console.log("➡", req.method, req.url, "Origin:", req.headers.origin);
   next();
@@ -52,6 +49,7 @@ app.get("/", (req, res) => {
       products: "/api/products",
       categories: "/api/categories",
       scan: "/api/scan",
+      reports: "/api/reports", // ⭐ NEW
     },
   });
 });
@@ -63,6 +61,7 @@ app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/products", require("./routes/productRoutes"));
 app.use("/api/categories", require("./routes/categoryRoutes"));
 app.use("/api/scan", require("./routes/scanRoutes"));
+app.use("/api/reports", require("./routes/reportRoutes")); // ⭐ NEW LINE
 
 // =======================
 // 404 Handler
