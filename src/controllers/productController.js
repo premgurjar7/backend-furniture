@@ -127,7 +127,6 @@ exports.getProductsByCategory = async (req, res) => {
 // =======================
 // 5. Low stock products
 // GET /api/products/low-stock?threshold=5
-// (aur /low-stock/alerts bhi isi ko use karega)
 // =======================
 exports.getLowStockProducts = async (req, res) => {
   try {
@@ -315,7 +314,6 @@ exports.deleteProduct = async (req, res) => {
 // =======================
 // 10. Generate barcode for a product
 // POST /api/products/:productId/generate-barcode
-// (abhi simple placeholder, baad me implement kar sakte hain)
 // =======================
 exports.generateBarcodeForProduct = async (req, res) => {
   try {
@@ -380,6 +378,78 @@ exports.bulkCreateProducts = async (req, res) => {
     });
   } catch (err) {
     console.error("bulkCreateProducts error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: err.message,
+    });
+  }
+};
+
+// =======================
+// 13. Update ONLY stock of a product
+// PATCH /api/products/:id/stock
+// Body: { "change": -1, "reason": "sale", "note": "Scanned at counter" }
+// =======================
+exports.updateProductStock = async (req, res) => {
+  try {
+    const id = req.params.id;
+
+    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid product ID" });
+    }
+
+    const { change, reason, note } = req.body;
+    const changeNumber = Number(change);
+
+    if (Number.isNaN(changeNumber) || changeNumber === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid non-zero numeric 'change' is required",
+      });
+    }
+
+    const product = await Product.findById(id);
+    if (!product) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Product not found" });
+    }
+
+    const currentStock = Number(product.stock) || 0;
+    const newStock = currentStock + changeNumber;
+
+    if (newStock < 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Stock cannot be negative",
+      });
+    }
+
+    product.stock = newStock;
+
+    // Optional: stock history array agar schema me ho
+    if (Array.isArray(product.stockHistory)) {
+      product.stockHistory.push({
+        change: changeNumber,
+        reason: reason || "adjustment",
+        note: note || "",
+        date: new Date(),
+      });
+    }
+
+    await product.save();
+
+    return res.json({
+      success: true,
+      message: "Stock updated",
+      stock: product.stock,
+      product,
+    });
+  } catch (err) {
+    console.error("updateProductStock error:", err);
     return res.status(500).json({
       success: false,
       message: "Server error",

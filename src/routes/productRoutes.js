@@ -38,6 +38,10 @@ router.get("/", safeHandler("getAllProducts"));
 // GET /api/products/code/FUR-001
 router.get("/code/:code", safeHandler("getProductByCode"));
 
+// (Scanner ke liye simple alias)
+// GET /api/products/barcode/FUR-001
+router.get("/barcode/:code", safeHandler("getProductByCode"));
+
 // 3. Search products
 // GET /api/products/search/sofa
 router.get("/search/:query", safeHandler("searchProducts"));
@@ -47,7 +51,7 @@ router.get("/search/:query", safeHandler("searchProducts"));
 router.get("/category/:category", safeHandler("getProductsByCategory"));
 
 // 5. Get low stock products
-// GET /api/products/low-stock?threshold=5   (yeh wali aap Postman me use kar rahe ho)
+// GET /api/products/low-stock?threshold=5
 router.get("/low-stock", safeHandler("getLowStockProducts"));
 
 // (optional alias – UI me alerts tab ke liye)
@@ -58,15 +62,27 @@ router.get("/low-stock/alerts", safeHandler("getLowStockProducts"));
 // GET /api/products/676abc123
 router.get("/:id", safeHandler("getProductById"));
 
-// 7. Create new product WITH AUTO CODE & BARCODE
+// ========================
+// STOCK UPDATE API
+// ========================
+
+// 7. Update only stock of a product
+// PATCH /api/products/:id/stock
+router.patch("/:id/stock", safeHandler("updateProductStock"));
+
+// ========================
+// CREATE / UPDATE / DELETE
+// ========================
+
+// 8. Create new product
 // POST /api/products
 router.post("/", safeHandler("createProduct"));
 
-// 8. Update product
+// 9. Update product
 // PUT /api/products/676abc123
 router.put("/:id", safeHandler("updateProduct"));
 
-// 9. Delete product
+// 10. Delete product
 // DELETE /api/products/676abc123
 router.delete("/:id", safeHandler("deleteProduct"));
 
@@ -74,14 +90,14 @@ router.delete("/:id", safeHandler("deleteProduct"));
 // BARCODE SPECIFIC APIs
 // ========================
 
-// 10. Generate barcode for existing product
+// 11. Generate barcode for existing product
 // POST /api/products/:productId/generate-barcode
 router.post(
   "/:productId/generate-barcode",
   safeHandler("generateBarcodeForProduct")
 );
 
-// 11. Bulk generate barcodes
+// 12. Bulk generate barcodes
 // POST /api/products/bulk/generate-barcodes
 router.post("/bulk/generate-barcodes", safeHandler("bulkGenerateBarcodes"));
 
@@ -89,7 +105,7 @@ router.post("/bulk/generate-barcodes", safeHandler("bulkGenerateBarcodes"));
 // BULK OPERATION APIs
 // ========================
 
-// 12. Bulk create products
+// 13. Bulk create products
 // POST /api/products/bulk/create
 router.post("/bulk/create", safeHandler("bulkCreateProducts"));
 
