@@ -8,15 +8,35 @@ require("dotenv").config();
 const app = express();
 
 // =======================
-// CORS CONFIG (FINAL)
+// CORS CONFIG (FIXED)
 // =======================
+
+// yaha sirf wahi origins allow kar rahe hain jahan se frontend chalega
+const allowedOrigins = [
+  "http://localhost:5173", // Vite frontend local
+  // "https://tumhara-frontend-domain.com", // future me deploy karoge to yaha add kar dena
+];
+
 const corsOptions = {
-  origin: true,
+  origin(origin, callback) {
+    // Postman / server-side scripts / health checks ke liye origin null ho sakta hai
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    console.log("❌ Blocked by CORS:", origin);
+    return callback(new Error("Not allowed by CORS"));
+  },
+  credentials: true, // 👈 IMPORTANT: frontend withCredentials: true ke liye
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
 };
 
+// global CORS
 app.use(cors(corsOptions));
+// preflight
 app.options("*", cors(corsOptions));
 
 // Debug logger
@@ -49,7 +69,7 @@ app.get("/", (req, res) => {
       products: "/api/products",
       categories: "/api/categories",
       scan: "/api/scan",
-      reports: "/api/reports", // ⭐ NEW
+      reports: "/api/reports",
     },
   });
 });
@@ -61,7 +81,7 @@ app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/products", require("./routes/productRoutes"));
 app.use("/api/categories", require("./routes/categoryRoutes"));
 app.use("/api/scan", require("./routes/scanRoutes"));
-app.use("/api/reports", require("./routes/reportRoutes")); // ⭐ NEW LINE
+app.use("/api/reports", require("./routes/reportRoutes"));
 
 // =======================
 // 404 Handler
