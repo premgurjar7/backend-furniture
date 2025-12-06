@@ -189,6 +189,10 @@ exports.getProductById = async (req, res) => {
 // 7. Create product
 // POST /api/products
 // =======================
+// =======================
+// 7. Create product
+// POST /api/products
+// =======================
 exports.createProduct = async (req, res) => {
   try {
     const {
@@ -211,6 +215,7 @@ exports.createProduct = async (req, res) => {
       });
     }
 
+    // duplicate check existing
     const existing = await Product.findOne({ code });
     if (existing) {
       return res.status(400).json({
@@ -219,7 +224,9 @@ exports.createProduct = async (req, res) => {
       });
     }
 
+    // 👇 YAHI MAIN FIX HAI: productCode ko bhi fill karo
     const product = await Product.create({
+      productCode: code,  // index ke liye kabhi null nahi rahega
       name,
       code,
       category,
@@ -242,6 +249,7 @@ exports.createProduct = async (req, res) => {
     });
   }
 };
+
 
 // =======================
 // 8. Update product

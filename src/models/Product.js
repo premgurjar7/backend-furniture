@@ -4,11 +4,15 @@ const mongoose = require("mongoose");
 
 const productSchema = new mongoose.Schema(
   {
-    name: {
+    // unique technical code jo DB/index ke liye use hoga
+    productCode: {
       type: String,
-      required: true,
+      unique: true,      // yahi index ka naam productCode_1 hai
+      sparse: true,      // null values ko ignore karega
       trim: true,
     },
+
+    // display / app ke liye code (same rakh sakte ho)
     code: {
       type: String,
       required: true,
@@ -16,9 +20,15 @@ const productSchema = new mongoose.Schema(
       trim: true,
     },
 
-    // 👇 IMPORTANT CHANGE: ab String, ObjectId nahi
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    // simple string category (Sofa, Bed, Chair etc.)
     category: {
-      type: String,   // e.g. "Sofa", "Bed", "Chair"
+      type: String,
       required: true,
       trim: true,
     },
