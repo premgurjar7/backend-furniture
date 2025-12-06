@@ -1,421 +1,389 @@
 ﻿// src/controllers/productController.js
 
-const Product = require('../models/Product');
-const { generateBarcode, generateBarcodeBase64 } = require('../utils/barcodeGenerator');
+const Product = require("../models/Product");
 
-// ===============================
-// GLOBAL BASE URL FOR IMAGE PATHS
-// ===============================
-const BASE_URL =
-  process.env.BASE_URL ||
-  `http://localhost:${process.env.PORT || 5000}`;
-
-// ===============================
-// Helper: Generate product code
-// ===============================
-const generateProductCode = async () => {
-  try {
-    // Get the last product
-    const lastProduct = await Product.findOne(
-      { productCode: { $regex: /^FUR-\d+$/ } },
-      {},
-      { sort: { createdAt: -1 } }
-    );
-
-    let nextNumber = 1;
-    if (lastProduct && lastProduct.productCode) {
-      const match = lastProduct.productCode.match(/FUR-(\d+)/);
-      if (match && match[1]) {
-        nextNumber = parseInt(match[1]) + 1;
-      }
-    }
-
-    // Check if code already exists
-    let productCode = `FUR-${nextNumber.toString().padStart(3, '0')}`;
-    let exists = await Product.findOne({ productCode });
-    let counter = 1;
-
-    // Find unique code
-    while (exists) {
-      productCode = `FUR-${(nextNumber + counter).toString().padStart(3, '0')}`;
-      exists = await Product.findOne({ productCode });
-      counter++;
-    }
-
-    return productCode;
-  } catch (error) {
-    console.error('Product code generation error:', error);
-    const timestamp = Date.now().toString().slice(-6);
-    return `FUR-T${timestamp}`;
-  }
-};
-
-// ===============================
-// Helper: Generate barcode image
-// ===============================
-const generateProductBarcode = async (productCode, productName) => {
-  try {
-    console.log(`🔄 Starting barcode generation for ${productCode}`);
-
-    const barcodeResult = await generateBarcode(productCode, productName);
-
-    console.log(`📊 Barcode result:`, barcodeResult);
-
-    // IMPORTANT FIX: BASE_URL instead of localhost
-    const barcodeImageUrl = barcodeResult.barcodeImage
-      ? `${BASE_URL}${barcodeResult.barcodeImage}`
-      : null;
-
-    return {
-      barcode: productCode,
-      barcodeImage: barcodeResult.barcodeImage,
-      barcodeImageUrl: barcodeImageUrl,
-      generationSuccess: barcodeResult.success
-    };
-  } catch (error) {
-    console.error('❌ Barcode generation failed:', error);
-
-    return {
-      barcode: productCode,
-      barcodeImage: `/uploads/barcodes/${productCode}.png`,
-      barcodeImageUrl: `${BASE_URL}/uploads/barcodes/${productCode}.png`,
-      generationSuccess: false,
-      error: error.message
-    };
-  }
-};
-
-// ===============================
-// 1. GET ALL PRODUCTS
-// ===============================
+// =======================
+// 1. Get all products
+// GET /api/products
+// Query: page, limit, q (search), category
+// =======================
 exports.getAllProducts = async (req, res) => {
   try {
-    const products = await Product.find().sort({ createdAt: -1 });
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 50;
+    const skip = (page - 1) * limit;
 
-    res.json({
+    const filter = {};
+
+    if (req.query.q) {
+      const q = req.query.q.trim();
+      filter.$or = [
+        { name: { $regex: q, $options: "i" } },
+        { code: { $regex: q, $options: "i" } },
+      ];
+    }
+
+    if (req.query.category) {
+      filter.category = req.query.category;
+    }
+
+    const [items, total] = await Promise.all([
+      Product.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      Product.countDocuments(filter),
+    ]);
+
+    return res.json({
       success: true,
-      count: products.length,
-      products: products.map(product => ({
-        _id: product._id,
-        productCode: product.productCode,
-        name: product.name,
-        category: product.category,
-        material: product.material,
-        color: product.color,
-        stock: product.stock,
-        price: product.price,
-        costPrice: product.costPrice,
-        barcode: product.barcode,
-        barcodeImage: product.barcodeImage,
-        location: product.location,
-        minStock: product.minStock,
-        description: product.description,
-        createdAt: product.createdAt,
-        updatedAt: product.updatedAt,
-        barcodeImageUrl: product.barcodeImage ? `${BASE_URL}${product.barcodeImage}` : null
-      }))
+      page,
+      limit,
+      total,
+      items,
     });
-  } catch (error) {
-    console.error('Get all products error:', error);
-    res.status(500).json({
+  } catch (err) {
+    console.error("getAllProducts error:", err);
+    return res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: "Server error",
+      error: err.message,
     });
   }
 };
 
-// ===============================
-// 2. GET PRODUCT BY ID
-// ===============================
+// =======================
+// 2. Get product by CODE
+// GET /api/products/code/:code
+// =======================
+exports.getProductByCode = async (req, res) => {
+  try {
+    const code = req.params.code.trim();
+    const product = await Product.findOne({ code });
+
+    if (!product) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Product not found" });
+    }
+
+    return res.json({ success: true, product });
+  } catch (err) {
+    console.error("getProductByCode error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: err.message,
+    });
+  }
+};
+
+// =======================
+// 3. Search products
+// GET /api/products/search/:query
+// =======================
+exports.searchProducts = async (req, res) => {
+  try {
+    const q = (req.params.query || "").trim();
+    if (!q) {
+      return res.json({ success: true, items: [] });
+    }
+
+    const items = await Product.find({
+      $or: [
+        { name: { $regex: q, $options: "i" } },
+        { code: { $regex: q, $options: "i" } },
+      ],
+    }).limit(50);
+
+    return res.json({ success: true, items });
+  } catch (err) {
+    console.error("searchProducts error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: err.message,
+    });
+  }
+};
+
+// =======================
+// 4. Get products by category (string)
+// GET /api/products/category/:category
+// =======================
+exports.getProductsByCategory = async (req, res) => {
+  try {
+    const category = req.params.category.trim();
+    const items = await Product.find({ category }).sort({ name: 1 });
+
+    return res.json({ success: true, items });
+  } catch (err) {
+    console.error("getProductsByCategory error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: err.message,
+    });
+  }
+};
+
+// =======================
+// 5. Low stock products
+// GET /api/products/low-stock?threshold=5
+// (aur /low-stock/alerts bhi isi ko use karega)
+// =======================
+exports.getLowStockProducts = async (req, res) => {
+  try {
+    const threshold = Number(req.query.threshold) || 5;
+
+    const products = await Product.find({
+      stock: { $lte: threshold },
+    }).sort({ stock: 1 });
+
+    return res.json({
+      success: true,
+      threshold,
+      count: products.length,
+      products,
+    });
+  } catch (err) {
+    console.error("getLowStockProducts error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: err.message,
+    });
+  }
+};
+
+// =======================
+// 6. Get product by ID
+// GET /api/products/:id
+// =======================
 exports.getProductById = async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id;
+
+    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid product ID" });
+    }
 
     const product = await Product.findById(id);
 
     if (!product) {
-      return res.status(404).json({
-        success: false,
-        message: 'Product not found'
-      });
+      return res
+        .status(404)
+        .json({ success: false, message: "Product not found" });
     }
 
-    res.json({
-      success: true,
-      product: {
-        ...product._doc,
-        barcodeImageUrl: product.barcodeImage ? `${BASE_URL}${product.barcodeImage}` : null
-      }
-    });
-  } catch (error) {
-    console.error('Get product by ID error:', error);
-
-    if (error.name === 'CastError') {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid product ID'
-      });
-    }
-
-    res.status(500).json({
+    return res.json({ success: true, product });
+  } catch (err) {
+    console.error("getProductById error:", err);
+    return res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: "Server error",
+      error: err.message,
     });
   }
 };
 
-// ===============================
-// 3. GET PRODUCT BY CODE
-// ===============================
-exports.getProductByCode = async (req, res) => {
-  try {
-    const { code } = req.params;
-
-    const product = await Product.findOne({ productCode: code });
-
-    if (!product) {
-      return res.status(404).json({
-        success: false,
-        message: 'Product not found'
-      });
-    }
-
-    res.json({
-      success: true,
-      product: {
-        ...product._doc,
-        barcodeImageUrl: product.barcodeImage ? `${BASE_URL}${product.barcodeImage}` : null
-      }
-    });
-  } catch (error) {
-    console.error('Get product by code error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error'
-    });
-  }
-};
-
-// ===============================
-// 4. CREATE PRODUCT + BARCODE
-// ===============================
+// =======================
+// 7. Create product
+// POST /api/products
+// =======================
 exports.createProduct = async (req, res) => {
   try {
-    console.log('🆕 Creating new product...');
-    const productData = req.body;
+    const {
+      name,
+      code,
+      category,
+      purchasePrice,
+      salePrice,
+      stock,
+      unit,
+      location,
+      description,
+      gstPercent,
+    } = req.body;
 
-    // Step 1: Auto product code
-    const productCode = await generateProductCode();
-    console.log(`✅ Generated product code: ${productCode}`);
-
-    // Step 2: Barcode generate
-    const barcodeData = await generateProductBarcode(productCode, productData.name);
-
-    // Step 3: Save to DB
-    const product = await Product.create({
-      ...productData,
-      productCode: productCode,
-      barcode: barcodeData.barcode,
-      barcodeImage: barcodeData.barcodeImage
-    });
-
-    // Step 4: Response with final URL
-    const responseData = {
-      _id: product._id,
-      productCode: product.productCode,
-      name: product.name,
-      category: product.category,
-      material: product.material,
-      color: product.color,
-      stock: product.stock,
-      price: product.price,
-      costPrice: product.costPrice || null,
-      barcode: product.barcode,
-      barcodeImage: product.barcodeImage,
-      barcodeImageUrl: barcodeData.barcodeImageUrl,
-      location: product.location || null,
-      minStock: product.minStock || 5,
-      description: product.description || null,
-      createdAt: product.createdAt
-    };
-
-    res.status(201).json({
-      success: true,
-      message: barcodeData.generationSuccess
-        ? 'Product created successfully with barcode'
-        : 'Product created but barcode image generation failed',
-      data: responseData,
-      barcodeGenerated: barcodeData.generationSuccess
-    });
-  } catch (error) {
-    console.error('❌ Create product error:', error);
-
-    if (error.code === 11000) {
-      const field = Object.keys(error.keyPattern)[0];
+    if (!name || !code || !category) {
       return res.status(400).json({
         success: false,
-        message: `${field} already exists`
+        message: "name, code & category are required",
       });
     }
 
-    res.status(500).json({
+    const existing = await Product.findOne({ code });
+    if (existing) {
+      return res.status(400).json({
+        success: false,
+        message: "Product code already exists",
+      });
+    }
+
+    const product = await Product.create({
+      name,
+      code,
+      category,
+      purchasePrice,
+      salePrice,
+      stock,
+      unit,
+      location,
+      description,
+      gstPercent,
+    });
+
+    return res.status(201).json({ success: true, product });
+  } catch (err) {
+    console.error("createProduct error:", err);
+    return res.status(500).json({
       success: false,
-      message: error.message || 'Failed to create product'
+      message: "Server error",
+      error: err.message,
     });
   }
 };
 
-// ===============================
-// 5. UPDATE PRODUCT
-// ===============================
+// =======================
+// 8. Update product
+// PUT /api/products/:id
+// =======================
 exports.updateProduct = async (req, res) => {
   try {
-    const { id } = req.params;
-    const updateData = req.body;
+    const id = req.params.id;
 
-    delete updateData._id;
-    delete updateData.productCode;
-    delete updateData.barcode;
-    delete updateData.barcodeImage;
-    delete updateData.createdAt;
-    delete updateData.updatedAt;
+    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid product ID" });
+    }
 
-    const product = await Product.findByIdAndUpdate(id, updateData, {
+    const product = await Product.findByIdAndUpdate(id, req.body, {
       new: true,
-      runValidators: true
     });
 
     if (!product) {
-      return res.status(404).json({
-        success: false,
-        message: 'Product not found'
-      });
+      return res
+        .status(404)
+        .json({ success: false, message: "Product not found" });
     }
 
-    res.json({
-      success: true,
-      message: 'Product updated successfully',
-      product: {
-        ...product._doc,
-        barcodeImageUrl: product.barcodeImage ? `${BASE_URL}${product.barcodeImage}` : null
-      }
-    });
-  } catch (error) {
-    console.error('Update product error:', error);
-
-    if (error.name === 'CastError') {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid product ID'
-      });
-    }
-
-    res.status(500).json({
+    return res.json({ success: true, product });
+  } catch (err) {
+    console.error("updateProduct error:", err);
+    return res.status(500).json({
       success: false,
-      message: error.message || 'Failed to update product'
+      message: "Server error",
+      error: err.message,
     });
   }
 };
 
-// ===============================
-// 6. DELETE PRODUCT
-// ===============================
+// =======================
+// 9. Delete product
+// DELETE /api/products/:id
+// =======================
 exports.deleteProduct = async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id;
+
+    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid product ID" });
+    }
 
     const product = await Product.findByIdAndDelete(id);
 
     if (!product) {
-      return res.status(404).json({
-        success: false,
-        message: 'Product not found'
-      });
+      return res
+        .status(404)
+        .json({ success: false, message: "Product not found" });
     }
 
-    res.json({
-      success: true,
-      message: 'Product deleted successfully',
-      product: {
-        _id: product._id,
-        productCode: product.productCode,
-        name: product.name
-      }
+    return res.json({ success: true, message: "Product deleted" });
+  } catch (err) {
+    console.error("deleteProduct error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: err.message,
     });
-  } catch (error) {
-    console.error('Delete product error:', error);
+  }
+};
 
-    if (error.name === 'CastError') {
+// =======================
+// 10. Generate barcode for a product
+// POST /api/products/:productId/generate-barcode
+// (abhi simple placeholder, baad me implement kar sakte hain)
+// =======================
+exports.generateBarcodeForProduct = async (req, res) => {
+  try {
+    const productId = req.params.productId;
+
+    return res.json({
+      success: true,
+      message: "Barcode generation placeholder (implement later)",
+      productId,
+    });
+  } catch (err) {
+    console.error("generateBarcodeForProduct error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: err.message,
+    });
+  }
+};
+
+// =======================
+// 11. Bulk generate barcodes (placeholder)
+// POST /api/products/bulk/generate-barcodes
+// =======================
+exports.bulkGenerateBarcodes = async (req, res) => {
+  try {
+    return res.json({
+      success: true,
+      message: "Bulk barcode generation placeholder (implement later)",
+    });
+  } catch (err) {
+    console.error("bulkGenerateBarcodes error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: err.message,
+    });
+  }
+};
+
+// =======================
+// 12. Bulk create products
+// POST /api/products/bulk/create
+// =======================
+exports.bulkCreateProducts = async (req, res) => {
+  try {
+    const items = Array.isArray(req.body) ? req.body : [];
+
+    if (!items.length) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid product ID'
+        message: "Array of products required",
       });
     }
 
-    res.status(500).json({
-      success: false,
-      message: 'Server error'
-    });
-  }
-};
+    const created = await Product.insertMany(items);
 
-// ===============================
-// 7. SEARCH PRODUCTS
-// ===============================
-exports.searchProducts = async (req, res) => {
-  try {
-    const { query } = req.params;
-
-    const products = await Product.find({
-      $or: [
-        { name: { $regex: query, $options: 'i' } },
-        { productCode: { $regex: query, $options: 'i' } },
-        { category: { $regex: query, $options: 'i' } },
-        { material: { $regex: query, $options: 'i' } },
-        { color: { $regex: query, $options: 'i' } },
-        { description: { $regex: query, $options: 'i' } }
-      ]
-    }).sort({ createdAt: -1 });
-
-    res.json({
+    return res.json({
       success: true,
-      count: products.length,
-      products: products
+      count: created.length,
+      items: created,
     });
-  } catch (error) {
-    console.error('Search products error:', error);
-    res.status(500).json({
+  } catch (err) {
+    console.error("bulkCreateProducts error:", err);
+    return res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: "Server error",
+      error: err.message,
     });
   }
 };
-
-// ===============================
-// 8. GET PRODUCTS BY CATEGORY
-// ===============================
-exports.getProductsByCategory = async (req, res) => {
-  try {
-    const { category } = req.params;
-
-    const products = await Product.find({
-      category: { $regex: new RegExp(`^${category}$`, 'i') }
-    }).sort({ createdAt: -1 });
-
-    res.json({
-      success: true,
-      count: products.length,
-      category: category,
-      products: products
-    });
-  } catch (error) {
-    console.error('Get products by category error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error'
-    });
-  }
-};
-
-
-
