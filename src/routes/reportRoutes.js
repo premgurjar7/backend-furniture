@@ -12,5 +12,8 @@ router.use(authMiddleware);
 // GET /api/reports/stock
 router.get("/stock", reportController.getStockReport);
 
-// 👇 IMPORTANT: yahi export hona chahiye
+// FULL SALES REPORT (Option E)
+// GET /api/reports/sales
+router.get("/sales", reportController.getSalesReport);
+
 module.exports = router;
